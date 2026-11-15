@@ -1,26 +1,28 @@
 # main.py
 # Archivo principal del sistema de blog por consola.
-# Su trabajo es coordinar: importa las piezas del paquete blog y llama a la
-# función que corresponde según la opción que elige el usuario.
+# Su trabajo es coordinar: carga los posts desde posts.json, crea el objeto Blog y
+# llama al método que corresponde según la opción que elige el usuario.
 # Para ejecutarlo, desde esta carpeta:  python main.py
 
-from blog.datos import posts
-from blog.menu import mostrar_menu, pedir_texto
-from blog.operaciones import (
-    listar_posts,
-    buscar_por_titulo,
-    filtrar_por_tag,
-    mostrar_validaciones,
-)
+from blog.datos import cargar_posts, guardar_posts
+from blog.menu import mostrar_menu, pedir_texto, pedir_datos_post
+from blog.modelos import Blog, Autor
+from blog.operaciones import mostrar_validaciones
 
 if __name__ == "__main__":
-    # El programa sigue en marcha hasta que el usuario elige la opción 5
+    # Al iniciar: se cargan los posts desde posts.json y se arma el Blog con ellos
+    posts_cargados, mensajes = cargar_posts()
+    for mensaje in mensajes:
+        print(mensaje)
+    blog = Blog(posts_cargados)
+
+    # El programa sigue en marcha hasta que el usuario elige la opción 7
     while True:
         opcion = mostrar_menu()
 
         if opcion == 1:
             # Ver todos los posts
-            listar_posts(posts)
+            blog.listar_posts()
 
         elif opcion == 2:
             # Buscar por título
@@ -28,12 +30,12 @@ if __name__ == "__main__":
             if termino == "":
                 print("La búsqueda no puede estar vacía.")
             else:
-                encontrados = buscar_por_titulo(posts, termino)
+                encontrados = blog.buscar_por_titulo(termino)
                 if len(encontrados) == 0:
                     print(f'No se encontraron posts con "{termino}" en el título.')
                 else:
                     print(f'Resultados para "{termino}":')
-                    listar_posts(encontrados)
+                    blog.listar_posts(encontrados)
 
         elif opcion == 3:
             # Filtrar por tag
@@ -41,22 +43,47 @@ if __name__ == "__main__":
             if tag == "":
                 print("El tag no puede estar vacío.")
             else:
-                encontrados = filtrar_por_tag(posts, tag)
+                encontrados = blog.filtrar_por_tag(tag)
                 if len(encontrados) == 0:
                     print(f'No hay posts con el tag "{tag}".')
                 else:
                     print(f"Posts con el tag {tag}:")
-                    listar_posts(encontrados)
+                    blog.listar_posts(encontrados)
 
         elif opcion == 4:
-            # Validar todos los posts
-            mostrar_validaciones(posts)
+            # Crear un post nuevo: se piden los datos, se crea el objeto Post y se agrega al Blog
+            datos = pedir_datos_post(blog.autor_por_defecto().nombre)
+            try:
+                # Si el autor ya existe en el blog se reutiliza; si no, se crea uno nuevo
+                autor = blog.autor_por_defecto()
+                if autor.nombre != datos["nombre_autor"]:
+                    autor = Autor(datos["nombre_autor"])
+                nuevo = blog.crear_post(datos["titulo"], datos["contenido"], autor,
+                                        datos["tags"], datos["estado"])
+                print(f"Post creado (id {nuevo.id}): {nuevo.resumen()}")
+                print("Recordá guardarlo con la opción 6 (o se guarda solo al salir).")
+            except ValueError as error:
+                print(f"No se pudo crear el post: {error}.")
 
         elif opcion == 5:
-            # Salir del programa
+            # Validar los posts
+            mostrar_validaciones(blog.validar_posts())
+
+        elif opcion == 6:
+            # Guardar los posts en posts.json
+            guardado, mensaje = guardar_posts(blog.obtener_posts())
+            print(mensaje)
+            if guardado:
+                blog.modificado = False
+
+        elif opcion == 7:
+            # Salir: si hay cambios sin guardar, se guardan antes de cerrar
+            if blog.modificado:
+                guardado, mensaje = guardar_posts(blog.obtener_posts())
+                print(mensaje)
             print("Gracias por usar el sistema del blog. ¡Hasta luego!")
             break
 
         elif opcion is not None:
             # Es un número, pero no es una opción del menú (si fue texto, ya se avisó)
-            print("Opción inexistente: elegí un número del 1 al 5.")
+            print("Opción inexistente: elegí un número del 1 al 7.")
